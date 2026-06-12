@@ -13,10 +13,6 @@ def recibir_mensajes(sock):
             if not data:
                 print("\n[SISTEMA] Conexión cerrada por el servidor.")
                 break
-            
-            # --- CORRECCIÓN AQUÍ ---
-            # Imprimimos el mensaje que llega limpiando la línea actual (\r) 
-            # pero SIN agregar la etiqueta "Cliente: " manualmente.
             sys.stdout.write("\r" + data + "\n")
             sys.stdout.flush()
         except:
@@ -27,22 +23,40 @@ def recibir_mensajes(sock):
 try:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))
-        
-        # 1. Primer mensaje del servidor (Pide autenticación)
-        print(s.recv(1024).decode("utf-8"), end="")
-        
-        # 2. Enviar el nombre de usuario para autenticarse
-        username = input()
-        s.sendall(username.encode("utf-8"))
-        
-        # 3. Recibir confirmación de bienvenida
+
+        # --- PROCESO DE AUTENTICACIÓN (3 pasos) ---
+        autenticado = False
+        while not autenticado:
+            # 1. "¿Tenés cuenta? login/registrar"
+            print(s.recv(1024).decode("utf-8"), end="")
+            opcion = input()
+            s.sendall(opcion.encode("utf-8"))
+
+            # 2. "Usuario: "
+            print(s.recv(1024).decode("utf-8"), end="")
+            usuario = input()
+            s.sendall(usuario.encode("utf-8"))
+
+            # 3. "Contraseña: "
+            print(s.recv(1024).decode("utf-8"), end="")
+            password = input()
+            s.sendall(password.encode("utf-8"))
+
+            # Resultado (OK o ERROR)
+            resultado = s.recv(1024).decode("utf-8")
+            print(resultado, end="")
+
+            if resultado.startswith("[OK]"):
+                autenticado = True
+
+        # Mensaje de bienvenida final del chat
         print(s.recv(1024).decode("utf-8"))
 
-        # 4. Encender el hilo de recepción de mensajes grupales
+        # Hilo de recepción de mensajes grupales
         hilo_recibir = threading.Thread(target=recibir_mensajes, args=(s,), daemon=True)
         hilo_recibir.start()
 
-        # 5. Bucle principal del teclado (Envío)
+        # Bucle principal del teclado
         try:
             while True:
                 mensaje = input("Cliente: ")
@@ -51,9 +65,8 @@ try:
                 if not mensaje.strip():
                     continue
                 s.sendall(mensaje.encode("utf-8"))
-                
+
         except KeyboardInterrupt:
-            # Captura el Ctrl + C de forma limpia y evita el mensaje rojo
             print("\n\n[SISTEMA] Saliendo del chat de forma segura...")
 
 except ConnectionRefusedError:
